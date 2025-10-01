@@ -1,18 +1,23 @@
 # syntax=docker/dockerfile:1
-FROM debian:bookworm-slim
+FROM python:3.11-slim
 
-ENV DEBIAN_FRONTEND=noninteractive \
-    PYTHONDONTWRITEBYTECODE=1 \
+ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
-# Установка Python и ADB
+# Установка только ADB (Python уже есть в базе)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3 python3-venv python3-pip adb ca-certificates && \
+    adb ca-certificates && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
 COPY requirements.txt ./
-RUN pip3 install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
+
+# Запуск: можно передать адрес через ADB_DEVICE или флаг --device
+# Примеры:
+#   docker run --net=host -e ADB_DEVICE=192.168.2.105:5555 smule-extender
+#   docker run --net=host smule-extender python main.py --device 192.168.2.105:5555
+CMD ["python", "main.py"]
