@@ -1,8 +1,9 @@
 import os
 import argparse
+import time
 from typing import Set, Tuple
 
-from adb_utils import connect, wait_for_device, start_app, force_stop, tap, swipe, get_window_size, ui_dump, adb
+from adb_utils import connect, wait_for_device, start_app, force_stop, tap, swipe, get_window_size, ui_dump, adb, back
 from ui_parser import parse_nodes, find_by_text_or_desc, find_by_resource_id, dump_hash, UINode
 
 PACKAGE = "com.smule.singandroid"
@@ -40,36 +41,91 @@ def navigate_to_profile(device: str, max_attempts: int = 8) -> None:
 def _is_extend_text(node: UINode) -> bool:
     t = (node.text or "").strip().lower()
     d = (node.content_desc or "").strip().lower()
-    return t == "extend" or d == "extend"
+    # На разных экранах/версиях может быть "Extend", "Extend 1h", и т.п.
+    return t == "extend" or d == "extend" or t.startswith("extend") or d.startswith("extend")
 
 
-def click_all_extends_on_screen(device: str) -> int:
-    xml = ui_dump(device)
-    nodes = parse_nodes(xml)
-    extends = [n for n in nodes if n.resource_id == EXTEND_RESOURCE_ID and _is_extend_text(n)]
-    if not extends:
-        return 0
+def _looks_like_back_button(node: UINode) -> bool:
+    d = (node.content_desc or "").strip().lower()
+    t = (node.text or "").strip().lower()
+    # Частые варианты у тулбара Android/Compose
+    return any(k in d for k in ["navigate up", "up", "back"]) or t in ["back", "назад"]
+
+
+def ensure_not_stuck_in_details(device: str, max_back: int = 3) -> None:
+    """
+    Если вместо списка песен открылся другой экран, часто появляется back/up кнопка.
+    В таком случае делаем несколько Back и возвращаемся в Profile.
+    """
+    for _ in range(max_back):
+        xml = ui_dump(device)
+        nodes = parse_nodes(xml)
+        # Если видим кнопки Extend — скорее всего мы на правильном списке.
+        extends = [n for n in nodes if n.resource_id == EXTEND_RESOURCE_ID and _is_extend_text(n)]
+        if extends:
+            return
+        back_buttons = [n for n in nodes if _looks_like_back_button(n)]
+        if not back_buttons:
+            return
+        print("[WARN] Looks like details screen. Pressing Back.")
+        back(device)
+        time.sleep(0.8)
+    # Финальная попытка перепрыгнуть на Profile (на случай если back не помог).
+    try:
+        navigate_to_profile(device)
+    except Exception:
+        pass
+
+
+def click_extends_on_screen(device: str, max_clicks: int = 12) -> int:
+    """
+    Кликаем Extend по одному и после каждого клика обновляем UI-дамп,
+    чтобы не нажимать по устаревшим координатам.
+    """
     clicked = 0
-    for node in extends:
+    seen_bounds: set[str] = set()
+    while clicked < max_clicks:
+        ensure_not_stuck_in_details(device)
+        xml = ui_dump(device)
+        nodes = parse_nodes(xml)
+        extends = [
+            n
+            for n in nodes
+            if n.resource_id == EXTEND_RESOURCE_ID
+            and _is_extend_text(n)
+            and n.enabled
+            and n.visible_to_user
+        ]
+        # Уберём те, по которым уже пытались нажать на этом экране
+        extends = [n for n in extends if n.bounds not in seen_bounds]
+        if not extends:
+            break
+        # Жмём снизу вверх: меньше шанс что список "поедет" и мы промахнёмся
+        extends.sort(key=lambda n: n.center()[1], reverse=True)
+        node = extends[0]
         x, y = node.center()
         if x <= 0 or y <= 0:
+            seen_bounds.add(node.bounds)
             continue
         print(f"[INFO] Click Extend at ({x},{y})")
         tap(device, x, y)
         clicked += 1
+        seen_bounds.add(node.bounds)
+        time.sleep(0.7)
     return clicked
 
 
-def infinite_scroll_and_click_extends(device: str, max_idle_iters: int = 3) -> None:
+def infinite_scroll_and_click_extends(device: str, max_idle_iters: int = 3, max_swipes: int = 250) -> None:
     w, h = get_window_size(device)
     start_y = int(h * 0.90)
     end_y = int(h * 0.15)
 
     last_hashes: list[str] = []
     idle = 0
+    swipes = 0
 
     while True:
-        clicked = click_all_extends_on_screen(device)
+        clicked = click_extends_on_screen(device)
         xml = ui_dump(device)
         hsh = dump_hash(xml)
         if last_hashes and hsh == last_hashes[-1] and clicked == 0:
@@ -82,8 +138,13 @@ def infinite_scroll_and_click_extends(device: str, max_idle_iters: int = 3) -> N
         if idle >= max_idle_iters:
             print("[INFO] Reached stable UI state. Finishing.")
             break
+        if swipes >= max_swipes:
+            print("[WARN] Reached max swipes. Finishing to avoid endless loop.")
+            break
         print(f"[INFO] Swipe from ({int(w*0.5)},{start_y}) to ({int(w*0.5)},{end_y})")
         swipe(device, int(w * 0.5), start_y, int(w * 0.5), end_y, duration_ms=500)
+        swipes += 1
+        time.sleep(0.6)
 
 
 def parse_args() -> argparse.Namespace:

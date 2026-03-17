@@ -1,0 +1,30 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: smule-extender-2
+spec:
+  schedule: "0 */12 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          nodeSelector:
+            node-role.kubernetes.io/control-plane: "true"
+          tolerations:
+          - key: "node-role.kubernetes.io/control-plane"
+            operator: "Exists"
+            effect: "NoSchedule"
+          - key: "node-role.kubernetes.io/master"
+            operator: "Exists"
+            effect: "NoSchedule"
+          containers:
+          - name: smule-extender
+            image: ghcr.io/nlemeshko/smule-extender:latest
+            imagePullPolicy: Always
+            command: ["python", "main.py", "--device", "192.168.2.106:5555"]
+          restartPolicy: Never
+          imagePullSecrets:
+          - name: regcred
