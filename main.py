@@ -66,17 +66,26 @@ def recover_if_system_dialog(device: str) -> bool:
     """
     xml = ui_dump(device)
     nodes = parse_nodes(xml)
+    crash_needles = [
+        "keeps stopping",
+        "isn't responding",
+        "is not responding",
+        "not responding",
+        "app isn't responding",
+        "не отвечает",
+        "перестало работать",
+    ]
     has_crash_dialog = any(
-        _contains_any(n.text, ["keeps stopping", "не отвечает", "перестало работать"])
-        or _contains_any(n.content_desc, ["keeps stopping", "не отвечает", "перестало работать"])
+        _contains_any(n.text, crash_needles)
+        or _contains_any(n.content_desc, crash_needles)
         for n in nodes
     )
     if not has_crash_dialog:
         return False
 
     print("[WARN] System crash dialog detected. Trying to recover.")
-    close_labels = ["close app", "ок", "ok", "закрыть приложение", "закрыть"]
-    wait_labels = ["wait", "подождать"]
+    close_labels = ["close app", "force close", "ок", "ok", "закрыть приложение", "закрыть"]
+    wait_labels = ["wait", "подождать", "wait for app", "подождать ответ"]
 
     node = _find_action_node(nodes, close_labels) or _find_action_node(nodes, wait_labels)
     if node is not None:
