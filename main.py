@@ -108,6 +108,44 @@ def recover_if_system_dialog(device: str) -> bool:
     return True
 
 
+def recover_if_smule_overlay(device: str) -> bool:
+    """
+    Обрабатывает внутренние экраны Smule, которые перекрывают список:
+    например "What to sing next?" / "Let's sing" / "Later".
+    """
+    xml = ui_dump(device)
+    nodes = parse_nodes(xml)
+    overlay_needles = [
+        "what to sing next",
+        "let's sing",
+        "lets sing",
+        "pick a song from our tuned playlist",
+        "later",
+        "спеть позже",
+    ]
+    has_overlay = any(
+        _contains_any(n.text, overlay_needles) or _contains_any(n.content_desc, overlay_needles)
+        for n in nodes
+    )
+    if not has_overlay:
+        return False
+
+    print("[WARN] Smule overlay detected. Closing it.")
+    dismiss_labels = ["later", "not now", "skip", "close", "спеть позже", "позже", "закрыть"]
+    node = _find_action_node(nodes, dismiss_labels)
+    if node is not None:
+        x, y = node.center()
+        if x > 0 and y > 0:
+            tap(device, x, y)
+            time.sleep(0.8)
+            return True
+
+    # Если в дампе нет явной кнопки, пробуем Back.
+    back(device)
+    time.sleep(0.8)
+    return True
+
+
 def _looks_like_back_button(node: UINode) -> bool:
     d = (node.content_desc or "").strip().lower()
     t = (node.text or "").strip().lower()
@@ -122,6 +160,8 @@ def ensure_not_stuck_in_details(device: str, max_back: int = 3) -> None:
     """
     for _ in range(max_back):
         if recover_if_system_dialog(device):
+            return
+        if recover_if_smule_overlay(device):
             return
         xml = ui_dump(device)
         nodes = parse_nodes(xml)
@@ -151,6 +191,8 @@ def click_extends_on_screen(device: str, max_clicks: int = 12) -> int:
     seen_bounds: set[str] = set()
     while clicked < max_clicks:
         if recover_if_system_dialog(device):
+            continue
+        if recover_if_smule_overlay(device):
             continue
         ensure_not_stuck_in_details(device)
         xml = ui_dump(device)
@@ -194,6 +236,8 @@ def infinite_scroll_and_click_extends(device: str, max_idle_iters: int = 3, max_
     while True:
         if recover_if_system_dialog(device):
             continue
+        if recover_if_smule_overlay(device):
+            continue
         clicked = click_extends_on_screen(device)
         xml = ui_dump(device)
         hsh = dump_hash(xml)
@@ -231,6 +275,7 @@ def main() -> None:
         wait_for_device(device, timeout_sec=30)
         start_app(device, PACKAGE)
         recover_if_system_dialog(device)
+        recover_if_smule_overlay(device)
         navigate_to_profile(device)
         infinite_scroll_and_click_extends(device)
     except KeyboardInterrupt:
