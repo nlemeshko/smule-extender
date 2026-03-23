@@ -45,6 +45,60 @@ def _is_extend_text(node: UINode) -> bool:
     return t == "extend" or d == "extend" or t.startswith("extend") or d.startswith("extend")
 
 
+def _contains_any(value: str, needles: list[str]) -> bool:
+    value = (value or "").strip().lower()
+    return any(n in value for n in needles)
+
+
+def _find_action_node(nodes: list[UINode], labels: list[str]) -> UINode | None:
+    for n in nodes:
+        text = (n.text or "").strip().lower()
+        desc = (n.content_desc or "").strip().lower()
+        if text in labels or desc in labels:
+            return n
+    return None
+
+
+def recover_if_system_dialog(device: str) -> bool:
+    """
+    Обрабатывает системные окна типа "System UI keeps stopping".
+    Возвращает True, если было вмешательство и выполнен recovery.
+    """
+    xml = ui_dump(device)
+    nodes = parse_nodes(xml)
+    has_crash_dialog = any(
+        _contains_any(n.text, ["keeps stopping", "не отвечает", "перестало работать"])
+        or _contains_any(n.content_desc, ["keeps stopping", "не отвечает", "перестало работать"])
+        for n in nodes
+    )
+    if not has_crash_dialog:
+        return False
+
+    print("[WARN] System crash dialog detected. Trying to recover.")
+    close_labels = ["close app", "ок", "ok", "закрыть приложение", "закрыть"]
+    wait_labels = ["wait", "подождать"]
+
+    node = _find_action_node(nodes, close_labels) or _find_action_node(nodes, wait_labels)
+    if node is not None:
+        x, y = node.center()
+        if x > 0 and y > 0:
+            print(f"[INFO] Tap dialog action at ({x},{y})")
+            tap(device, x, y)
+            time.sleep(1.0)
+    else:
+        # Если кнопку не нашли в дампе, пробуем просто Back как fallback.
+        back(device)
+        time.sleep(1.0)
+
+    # Перезапускаем Smule и возвращаемся в рабочий экран.
+    safe_force_stop(device)
+    time.sleep(0.8)
+    start_app(device, PACKAGE)
+    time.sleep(2.0)
+    navigate_to_profile(device)
+    return True
+
+
 def _looks_like_back_button(node: UINode) -> bool:
     d = (node.content_desc or "").strip().lower()
     t = (node.text or "").strip().lower()
@@ -58,6 +112,8 @@ def ensure_not_stuck_in_details(device: str, max_back: int = 3) -> None:
     В таком случае делаем несколько Back и возвращаемся в Profile.
     """
     for _ in range(max_back):
+        if recover_if_system_dialog(device):
+            return
         xml = ui_dump(device)
         nodes = parse_nodes(xml)
         # Если видим кнопки Extend — скорее всего мы на правильном списке.
@@ -85,6 +141,8 @@ def click_extends_on_screen(device: str, max_clicks: int = 12) -> int:
     clicked = 0
     seen_bounds: set[str] = set()
     while clicked < max_clicks:
+        if recover_if_system_dialog(device):
+            continue
         ensure_not_stuck_in_details(device)
         xml = ui_dump(device)
         nodes = parse_nodes(xml)
@@ -125,6 +183,8 @@ def infinite_scroll_and_click_extends(device: str, max_idle_iters: int = 3, max_
     swipes = 0
 
     while True:
+        if recover_if_system_dialog(device):
+            continue
         clicked = click_extends_on_screen(device)
         xml = ui_dump(device)
         hsh = dump_hash(xml)
@@ -161,6 +221,7 @@ def main() -> None:
         connect(device)
         wait_for_device(device, timeout_sec=30)
         start_app(device, PACKAGE)
+        recover_if_system_dialog(device)
         navigate_to_profile(device)
         infinite_scroll_and_click_extends(device)
     except KeyboardInterrupt:
