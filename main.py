@@ -195,7 +195,7 @@ def ensure_not_stuck_in_details(device: str, max_back: int = 3) -> None:
         pass
 
 
-def click_extends_on_screen(device: str, max_clicks: int = 12) -> int:
+def click_extends_on_screen(device: str, max_clicks: int = 12, post_click_delay_sec: float = 0.35) -> int:
     """
     Кликаем Extend по одному и после каждого клика обновляем UI-дамп,
     чтобы не нажимать по устаревшим координатам.
@@ -233,11 +233,18 @@ def click_extends_on_screen(device: str, max_clicks: int = 12) -> int:
         tap(device, x, y)
         clicked += 1
         seen_bounds.add(node.bounds)
-        time.sleep(0.7)
+        time.sleep(post_click_delay_sec)
     return clicked
 
 
-def infinite_scroll_and_click_extends(device: str, max_idle_iters: int = 3, max_swipes: int = 250) -> None:
+def infinite_scroll_and_click_extends(
+    device: str,
+    max_idle_iters: int = 3,
+    max_swipes: int = 250,
+    swipe_duration_ms: int = 300,
+    post_swipe_delay_sec: float = 0.25,
+    post_click_delay_sec: float = 0.35,
+) -> None:
     w, h = get_window_size(device)
     start_y = int(h * 0.90)
     end_y = int(h * 0.15)
@@ -251,7 +258,7 @@ def infinite_scroll_and_click_extends(device: str, max_idle_iters: int = 3, max_
             continue
         if recover_if_smule_overlay(device):
             continue
-        clicked = click_extends_on_screen(device)
+        clicked = click_extends_on_screen(device, post_click_delay_sec=post_click_delay_sec)
         xml = ui_dump(device)
         hsh = dump_hash(xml)
         if last_hashes and hsh == last_hashes[-1] and clicked == 0:
@@ -268,14 +275,17 @@ def infinite_scroll_and_click_extends(device: str, max_idle_iters: int = 3, max_
             print("[WARN] Reached max swipes. Finishing to avoid endless loop.")
             break
         print(f"[INFO] Swipe from ({int(w*0.5)},{start_y}) to ({int(w*0.5)},{end_y})")
-        swipe(device, int(w * 0.5), start_y, int(w * 0.5), end_y, duration_ms=500)
+        swipe(device, int(w * 0.5), start_y, int(w * 0.5), end_y, duration_ms=swipe_duration_ms)
         swipes += 1
-        time.sleep(0.6)
+        time.sleep(post_swipe_delay_sec)
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Smule extender via ADB")
     parser.add_argument("--device", "-d", default=os.getenv("ADB_DEVICE", "192.168.2.105:5555"), help="ADB device address, e.g. 192.168.2.105:5555")
+    parser.add_argument("--swipe-duration-ms", type=int, default=300, help="Duration of swipe in ms (smaller = faster)")
+    parser.add_argument("--post-swipe-delay-sec", type=float, default=0.25, help="Delay after swipe in seconds")
+    parser.add_argument("--post-click-delay-sec", type=float, default=0.35, help="Delay after tapping Extend in seconds")
     return parser.parse_args()
 
 
@@ -290,7 +300,12 @@ def main() -> None:
         recover_if_system_dialog(device)
         recover_if_smule_overlay(device)
         navigate_to_profile(device)
-        infinite_scroll_and_click_extends(device)
+        infinite_scroll_and_click_extends(
+            device,
+            swipe_duration_ms=args.swipe_duration_ms,
+            post_swipe_delay_sec=args.post_swipe_delay_sec,
+            post_click_delay_sec=args.post_click_delay_sec,
+        )
     except KeyboardInterrupt:
         print("[INFO] Interrupted by user")
     except Exception as e:
