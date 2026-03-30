@@ -153,6 +153,14 @@ def _looks_like_back_button(node: UINode) -> bool:
     return any(k in d for k in ["navigate up", "up", "back"]) or t in ["back", "назад"]
 
 
+def _is_profile_screen(nodes: list[UINode]) -> bool:
+    # Ищем любые признаки вкладки Profile (текст/desc/resource-id).
+    # Это защита от ложных срабатываний на Back в "нормальном" списке.
+    if find_by_text_or_desc(nodes, "Profile"):
+        return True
+    return any("profile" in (n.resource_id or "").lower() or "profile" in (n.content_desc or "").lower() for n in nodes)
+
+
 def ensure_not_stuck_in_details(device: str, max_back: int = 3) -> None:
     """
     Если вместо списка песен открылся другой экран, часто появляется back/up кнопка.
@@ -169,11 +177,16 @@ def ensure_not_stuck_in_details(device: str, max_back: int = 3) -> None:
         extends = [n for n in nodes if n.resource_id == EXTEND_RESOURCE_ID and _is_extend_text(n)]
         if extends:
             return
+        # Если мы уже в профиле (пусть Extend сейчас не в видимой области),
+        # НЕ жмём Back, иначе можно уехать на "главную".
+        if _is_profile_screen(nodes):
+            return
         back_buttons = [n for n in nodes if _looks_like_back_button(n)]
         if not back_buttons:
             return
-        print("[WARN] Looks like details screen. Pressing Back.")
-        back(device)
+        print("[WARN] Looks like details screen. Returning to Profile.")
+        # Более безопасно: вместо одиночного Back возвращаемся через вкладку Profile.
+        navigate_to_profile(device)
         time.sleep(0.8)
     # Финальная попытка перепрыгнуть на Profile (на случай если back не помог).
     try:
