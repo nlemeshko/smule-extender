@@ -295,7 +295,7 @@ def parse_args() -> argparse.Namespace:
     # Чем меньше расстояние (start_y_frac - end_y_frac), тем "мельче" шаг и меньше шанс перепрыгнуть карточки.
     parser.add_argument("--start-y-frac", type=float, default=0.88, help="Swipe start Y as fraction of height (smaller = shorter swipe)")
     # Делай ближе к start_y_frac, чтобы уменьшить шаг прокрутки.
-    parser.add_argument("--end-y-frac", type=float, default=0.82, help="Swipe end Y as fraction of height (bigger = shorter swipe)")
+    parser.add_argument("--end-y-frac", type=float, default=0.44, help="Swipe end Y as fraction of height (bigger = shorter swipe)")
     return parser.parse_args()
 
 
