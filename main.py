@@ -291,7 +291,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--post-click-delay-sec", type=float, default=0.4, help="Delay after tapping Extend in seconds")
     # Чем меньше расстояние (start_y_frac - end_y_frac), тем "мельче" шаг и меньше шанс перепрыгнуть карточки.
     parser.add_argument("--start-y-frac", type=float, default=0.88, help="Swipe start Y as fraction of height (smaller = shorter swipe)")
-    parser.add_argument("--end-y-frac", type=float, default=0.54, help="Swipe end Y as fraction of height (bigger = shorter swipe)")
+    parser.add_argument("--end-y-frac", type=float, default=0.70, help="Swipe end Y as fraction of height (bigger = shorter swipe)")
     return parser.parse_args()
 
 
