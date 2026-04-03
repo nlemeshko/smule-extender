@@ -239,7 +239,7 @@ def click_extends_on_screen(device: str, max_clicks: int = 12, post_click_delay_
 
 def infinite_scroll_and_click_extends(
     device: str,
-    max_idle_iters: int = 3,
+    max_idle_iters: int = 5,
     max_swipes: int = 250,
     swipe_duration_ms: int = 300,
     post_swipe_delay_sec: float = 0.25,
@@ -286,11 +286,12 @@ def infinite_scroll_and_click_extends(
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Smule extender via ADB")
     parser.add_argument("--device", "-d", default=os.getenv("ADB_DEVICE", "192.168.2.105:5555"), help="ADB device address, e.g. 192.168.2.105:5555")
-    parser.add_argument("--swipe-duration-ms", type=int, default=260, help="Duration of swipe in ms (smaller = faster)")
-    parser.add_argument("--post-swipe-delay-sec", type=float, default=0.18, help="Delay after swipe in seconds")
-    parser.add_argument("--post-click-delay-sec", type=float, default=0.30, help="Delay after tapping Extend in seconds")
-    parser.add_argument("--start-y-frac", type=float, default=0.88, help="Swipe start Y as fraction of height (smaller = shorter swipe)")
-    parser.add_argument("--end-y-frac", type=float, default=0.22, help="Swipe end Y as fraction of height (bigger = shorter swipe)")
+    parser.add_argument("--swipe-duration-ms", type=int, default=220, help="Duration of swipe in ms (smaller = faster)")
+    parser.add_argument("--post-swipe-delay-sec", type=float, default=0.14, help="Delay after swipe in seconds")
+    parser.add_argument("--post-click-delay-sec", type=float, default=0.26, help="Delay after tapping Extend in seconds")
+    # Чем меньше расстояние (start_y_frac - end_y_frac), тем "мельче" шаг и меньше шанс перепрыгнуть карточки.
+    parser.add_argument("--start-y-frac", type=float, default=0.86, help="Swipe start Y as fraction of height (smaller = shorter swipe)")
+    parser.add_argument("--end-y-frac", type=float, default=0.33, help="Swipe end Y as fraction of height (bigger = shorter swipe)")
     return parser.parse_args()
 
 
