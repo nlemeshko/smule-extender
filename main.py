@@ -241,16 +241,19 @@ def infinite_scroll_and_click_extends(
     device: str,
     max_idle_iters: int = 5,
     max_swipes: int = 250,
-    swipe_duration_ms: int = 300,
-    post_swipe_delay_sec: float = 0.25,
-    post_click_delay_sec: float = 0.35,
-    start_y_frac: float = 0.90,
-    end_y_frac: float = 0.15,
+    swipe_duration_ms: int = 180,
+    post_swipe_delay_sec: float = 0.10,
+    post_click_delay_sec: float = 0.22,
+    start_y_frac: float = 0.88,
+    end_y_frac: float = 0.82,
 ) -> None:
     w, h = get_window_size(device)
     # Уменьшаем дистанцию свайпа, чтобы не "пролистывать" целую карточку одним движением.
+    if end_y_frac >= start_y_frac:
+        raise ValueError(f"end_y_frac ({end_y_frac}) must be < start_y_frac ({start_y_frac})")
     start_y = int(h * start_y_frac)
     end_y = int(h * end_y_frac)
+    print(f"[INFO] Swipe step Y: start_y={start_y} end_y={end_y} (h={h}) duration_ms={swipe_duration_ms}")
 
     last_hashes: list[str] = []
     idle = 0
@@ -286,12 +289,13 @@ def infinite_scroll_and_click_extends(
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Smule extender via ADB")
     parser.add_argument("--device", "-d", default=os.getenv("ADB_DEVICE", "192.168.2.105:5555"), help="ADB device address, e.g. 192.168.2.105:5555")
-    parser.add_argument("--swipe-duration-ms", type=int, default=10, help="Duration of swipe in ms (smaller = faster)")
-    parser.add_argument("--post-swipe-delay-sec", type=float, default=0.2, help="Delay after swipe in seconds")
-    parser.add_argument("--post-click-delay-sec", type=float, default=0.4, help="Delay after tapping Extend in seconds")
+    parser.add_argument("--swipe-duration-ms", type=int, default=180, help="Duration of swipe in ms (smaller = faster, но слишком маленькое = нестабильно)")
+    parser.add_argument("--post-swipe-delay-sec", type=float, default=0.10, help="Delay after swipe in seconds")
+    parser.add_argument("--post-click-delay-sec", type=float, default=0.22, help="Delay after tapping Extend in seconds")
     # Чем меньше расстояние (start_y_frac - end_y_frac), тем "мельче" шаг и меньше шанс перепрыгнуть карточки.
     parser.add_argument("--start-y-frac", type=float, default=0.88, help="Swipe start Y as fraction of height (smaller = shorter swipe)")
-    parser.add_argument("--end-y-frac", type=float, default=0.74, help="Swipe end Y as fraction of height (bigger = shorter swipe)")
+    # Делай ближе к start_y_frac, чтобы уменьшить шаг прокрутки.
+    parser.add_argument("--end-y-frac", type=float, default=0.82, help="Swipe end Y as fraction of height (bigger = shorter swipe)")
     return parser.parse_args()
 
 
