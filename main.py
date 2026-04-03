@@ -244,10 +244,13 @@ def infinite_scroll_and_click_extends(
     swipe_duration_ms: int = 300,
     post_swipe_delay_sec: float = 0.25,
     post_click_delay_sec: float = 0.35,
+    start_y_frac: float = 0.90,
+    end_y_frac: float = 0.15,
 ) -> None:
     w, h = get_window_size(device)
-    start_y = int(h * 0.90)
-    end_y = int(h * 0.15)
+    # Уменьшаем дистанцию свайпа, чтобы не "пролистывать" целую карточку одним движением.
+    start_y = int(h * start_y_frac)
+    end_y = int(h * end_y_frac)
 
     last_hashes: list[str] = []
     idle = 0
@@ -283,9 +286,11 @@ def infinite_scroll_and_click_extends(
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Smule extender via ADB")
     parser.add_argument("--device", "-d", default=os.getenv("ADB_DEVICE", "192.168.2.105:5555"), help="ADB device address, e.g. 192.168.2.105:5555")
-    parser.add_argument("--swipe-duration-ms", type=int, default=300, help="Duration of swipe in ms (smaller = faster)")
-    parser.add_argument("--post-swipe-delay-sec", type=float, default=0.25, help="Delay after swipe in seconds")
-    parser.add_argument("--post-click-delay-sec", type=float, default=0.35, help="Delay after tapping Extend in seconds")
+    parser.add_argument("--swipe-duration-ms", type=int, default=260, help="Duration of swipe in ms (smaller = faster)")
+    parser.add_argument("--post-swipe-delay-sec", type=float, default=0.18, help="Delay after swipe in seconds")
+    parser.add_argument("--post-click-delay-sec", type=float, default=0.30, help="Delay after tapping Extend in seconds")
+    parser.add_argument("--start-y-frac", type=float, default=0.88, help="Swipe start Y as fraction of height (smaller = shorter swipe)")
+    parser.add_argument("--end-y-frac", type=float, default=0.22, help="Swipe end Y as fraction of height (bigger = shorter swipe)")
     return parser.parse_args()
 
 
@@ -305,6 +310,8 @@ def main() -> None:
             swipe_duration_ms=args.swipe_duration_ms,
             post_swipe_delay_sec=args.post_swipe_delay_sec,
             post_click_delay_sec=args.post_click_delay_sec,
+            start_y_frac=args.start_y_frac,
+            end_y_frac=args.end_y_frac,
         )
     except KeyboardInterrupt:
         print("[INFO] Interrupted by user")
